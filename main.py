@@ -84,6 +84,8 @@ class _WindowsHotkeyEventFilter(QAbstractNativeEventFilter):
         if eventType not in ("windows_generic_MSG", "windows_dispatcher_MSG"):
             return False, 0
         try:
+            if message is None:
+                return False, 0
             msg = wintypes.MSG.from_address(int(message))
             if msg.message == self.WM_HOTKEY and int(msg.wParam) == self._hotkey_id:
                 try:

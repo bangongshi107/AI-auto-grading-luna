@@ -9,7 +9,7 @@ import re
 from typing import Optional, cast, Tuple
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QMessageBox, QDialog,
                              QComboBox, QLineEdit, QCheckBox, QSpinBox, QDoubleSpinBox,
-                             QPlainTextEdit, QPushButton)
+                             QPlainTextEdit, QPushButton, QShortcut)
 from PyQt5.QtCore import Qt, pyqtSignal, QEvent, QObject, QTimer
 from PyQt5.QtGui import QFont, QCloseEvent, QIcon, QTextCursor, QTextBlockFormat
 from PyQt5 import uic
@@ -636,14 +636,15 @@ class MainWindow(QMainWindow):
                 # 加载每题独立的步长
                 step_combo = self.get_ui_element(f'score_rounding_step_{i}')
                 if step_combo and isinstance(step_combo, QComboBox):
-                    step_value = q_config.get('score_rounding_step', 0.5)
-                    # 将步长值转为显示文本，支持 0.5, 1, 1.5, 2
-                    # 整数显示为不带小数点的形式（如 1），浮点数保持小数形式（如 0.5, 1.5）
-                    if step_value == int(step_value):
-                        step_text = str(int(step_value))
-                    else:
-                        step_text = str(step_value)
-                    step_combo.setCurrentText(step_text)
+                    step_value = float(q_config.get('score_rounding_step', 0.5))
+                    # 下拉项文本带首尾空格，按数值匹配
+                    for idx in range(step_combo.count()):
+                        try:
+                            if float(step_combo.itemText(idx).strip()) == step_value:
+                                step_combo.setCurrentIndex(idx)
+                                break
+                        except ValueError:
+                            continue
 
             # 加载完成后，应用所有UI约束
             self._apply_ui_constraints()
@@ -742,16 +743,11 @@ class MainWindow(QMainWindow):
 
             self.worker.set_parameters(**params)
             
-            # === 重要：在启动阅卷前，隐藏所有答题框窗口和最小化主窗口 ===
-            # 1. 隐藏所有答题框窗口
+            # 启动阅卷前隐藏所有答题框窗口（主窗口不再自动最小化）
             for q_idx, answer_window in list(self.answer_windows.items()):
                 if answer_window and answer_window.isVisible():
                     answer_window.hide()
                     self.log_message(f"已隐藏第{q_idx}题答题框窗口")
-            
-            # 2. 最小化主窗口，避免遮挡答题卡
-            self.showMinimized()
-            self.log_message("主窗口已最小化，准备开始截图和阅卷")
             
             self.worker.start()
             self.update_ui_state(is_running=True)
@@ -1027,10 +1023,7 @@ class MainWindow(QMainWindow):
         for name in config_controls:
             self._safe_set_enabled(name, not is_running)
 
-        if is_running:
-            if not self.isMinimized(): self.showMinimized()
-        else:
-            if self.isMinimized(): self.showNormal(); self.activateWindow()
+        if not is_running:
             self._apply_ui_constraints() # 任务结束后恢复UI约束
 
     def stop_auto_thread(self):
@@ -1139,6 +1132,16 @@ class MainWindow(QMainWindow):
         auto_btn = self.get_ui_element('auto_run_but')
         if auto_btn and isinstance(auto_btn, QPushButton):
             auto_btn.clicked.connect(self.auto_run_but_clicked)
+            auto_btn.setToolTip("开始阅卷快捷键：回车")
+            # 回车触发开始；多行文本框(标准答案/日志)会优先处理回车换行，不受影响。
+            # click() 在按钮被禁用（阅卷运行中）时不会触发。
+            from PyQt5.QtGui import QKeySequence
+            self._enter_shortcuts = []
+            for key in (Qt.Key_Return, Qt.Key_Enter):
+                sc = QShortcut(QKeySequence(key), self)
+                sc.setContext(Qt.WindowShortcut)
+                sc.activated.connect(auto_btn.click)
+                self._enter_shortcuts.append(sc)
         
         stop_btn = self.get_ui_element('stop_but')
         if stop_btn and isinstance(stop_btn, QPushButton):

@@ -1192,7 +1192,7 @@ QScrollBar::sub-line:horizontal {
              </sizepolicy>
             </property>
             <property name="text">
-             <string>   改卷份数：</string>
+             <string>  改卷份数：</string>
             </property>
            </widget>
           </item>
@@ -1215,7 +1215,7 @@ QScrollBar::sub-line:horizontal {
              </sizepolicy>
             </property>
             <property name="text">
-             <string>   翻页间隔：</string>
+             <string>  翻页间隔：</string>
             </property>
            </widget>
           </item>
